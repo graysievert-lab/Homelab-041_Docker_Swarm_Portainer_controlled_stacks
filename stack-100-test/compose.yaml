@@ -1,0 +1,21 @@
+services:
+  nginx:
+    image: nginx:stable-alpine
+    volumes:
+      - ./static:/usr/share/nginx/html # portainer relative paths test
+      - /usr/share/doc/bash/bash.html:/usr/share/nginx/html/page.html # check if absolute paths are loading files from host
+    networks:
+      - traefik
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.100_test_p_80.loadbalancer.server.port=80"
+        - "traefik.http.routers.100_test.entrypoints=https"        
+        - "traefik.http.routers.100_test.rule=Host(`100-test.swarm.lan`)"
+        - "traefik.http.routers.100_test.service=100_test_p_80"
+        - "traefik.http.routers.100_test.tls.certresolver=homelab-alpn"
+
+networks:
+  traefik:
+    external: true
+    
