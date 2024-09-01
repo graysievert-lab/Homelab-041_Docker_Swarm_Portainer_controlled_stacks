@@ -62,6 +62,7 @@ Application:
 - Slug: `devops_access_prometheus`
 - Provider: `devops_access_prometheus`
 - Launch URL: `https://prometheus.swarm.lan`
+- On tab `Policy / Group / User Bindings` create binding for group `devops`
 
 Outposts:
 
@@ -83,6 +84,7 @@ Application:
 - Slug: `devops_access_alertmanager`
 - Provider: `devops_access_alertmanager`
 - Launch URL: `https://alertmanager.swarm.lan`
+- On tab `Policy / Group / User Bindings` create binding for group `devops`
 
 Outposts:
 
