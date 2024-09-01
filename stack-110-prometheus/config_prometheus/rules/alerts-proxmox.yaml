@@ -1,0 +1,63 @@
+groups:
+  - name: alerts-proxmox
+    rules:
+####################################################
+
+      - record: job:proxmox_node_memory:usage
+        expr: (pve_memory_usage_bytes  / pve_memory_size_bytes and on(id) pve_node_info) * 100
+
+      - alert: ProxmoxNodeMemoryUsageAbove80%
+        expr: 80 < job:proxmox_node_memory:usage <=90
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          description: 'Memory usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+          
+      - alert: ProxmoxNodeMemoryUsageAbove90%
+        expr: 90 < job:proxmox_node_memory:usage 
+        for: 5m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'Memory usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+####################################################          
+      - record: job:proxmox_node_cpu:usage
+        expr: (pve_cpu_usage_ratio and on(id) pve_node_info)*100
+      
+      - alert: ProxmoxNodeCpuUsageAbove80%
+        expr: 80 < job:proxmox_node_cpu:usage < 90
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          description: 'CPU usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+      
+      - alert: ProxmoxNodeCpuUsageAbove90%
+        expr: 90 < job:proxmox_node_cpu:usage 
+        for: 5m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'CPU usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+####################################################          
+      - record: job:proxmox_node_storage:usage
+        expr: (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes * on (id, instance) group_left(storage) pve_storage_info)*100
+      
+      - alert: FreeStorageLessThan20%
+        expr: (100 - job:proxmox_node_storage:usage) < 20
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          description: 'Free storage on `{{ $labels.storage}}` at `{{ $labels.instance }}` is only at *{{ $value }}%*.'
+          dashboard: 

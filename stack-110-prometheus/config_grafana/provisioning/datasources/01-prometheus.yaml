@@ -1,0 +1,27 @@
+apiVersion: 1
+
+deleteDatasources:          # List of data sources to delete from the database.
+  - name: prometheus
+    orgId: 1
+prune: true                 # Mark provisioned data sources for deletion if they are no longer in a provisioning file.
+
+datasources:                            # List of data sources to insert/update
+  - name: prometheus                    # Sets the name you use to refer to the data source in panels and queries.
+    type: prometheus                    # Sets the data source type.
+    access: proxy                       # Sets the access mode, either proxy or direct (Server or Browser in the UI).
+    orgId: 1                            # Sets the organization id. Defaults to orgId 1.
+    # uid:...                           # Sets a custom UID to reference this data source in other parts of the configuration. If not specified, Grafana generates one.
+    url: http://tasks.prometheus:9090   # Sets the data source's URL, including the port.
+    isDefault: true                     # Toggles whether the data source is pre-selected for new panels. You can set only one default data source per organization.
+    version: 1                          # Sets the version. Used to compare versions when updating. Ignored when creating a new data source.
+    editable: true                      # Allows users to edit data sources from the Grafana UI.
+    jsonData:                           # Fields to convert to JSON and store in jsonData.
+      httpMethod: POST                    # HTTP Method. ‘GET’, ‘POST’, defaults to POST
+      manageAlerts: true                  # Manage alerts via Alerting UI
+      # alertmanagerUid: ...              # UID of Alert Manager that manages Alert for this data source.
+      prometheusVersion: 2.53.2           # The version of the Prometheus data source
+      prometheusType: Prometheus          # Prometheus database type. Options are Prometheus, Cortex, Mimir or Thanos.
+      cacheLevel: 'High'                  # Determines the duration of the browser cache. Valid values include: Low, Medium, High, and None.
+      incrementalQuerying: true           # Experimental: Turn on incremental querying to enhance dashboard reload performance with slow data sources
+      incrementalQueryOverlapWindow: 10m  #Experimental: Configure incremental query overlap window. Default value is 10m.
+      disableRecordingRules: false        # Experimental: Turn off Prometheus recording rules

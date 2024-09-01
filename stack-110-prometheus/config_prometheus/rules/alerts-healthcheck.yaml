@@ -1,0 +1,17 @@
+groups:
+  - name: self-check
+    rules:
+####################################################
+      - record: generate:pulse_for5m_each_day:probe
+        expr: (2 * ((time() % 86400) < bool 60*5))
+
+      - alert: SelfMonitorProbeActive
+        expr: generate:pulse_for5m_each_day:probe >= 1
+        for: 10s
+        keep_firing_for: 1m
+        labels:
+          severity: info
+          team: devops
+        annotations:
+          summary: 'Still alive!'
+          description: 'Making a note here - HUGE SUCCESS!'

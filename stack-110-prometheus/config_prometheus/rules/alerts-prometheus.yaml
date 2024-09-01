@@ -1,0 +1,14 @@
+groups:
+  - name: alerts-prometheus
+    rules:
+####################################################
+
+      - alert: PrometheusConfigFailedReload
+        expr: prometheus_config_last_reload_successful == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'Prometheus configuration failed to load.'
+          dashboard: 

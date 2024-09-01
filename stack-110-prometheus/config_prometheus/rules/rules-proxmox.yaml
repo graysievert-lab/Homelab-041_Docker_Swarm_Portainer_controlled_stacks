@@ -1,0 +1,6 @@
+groups:
+  - name: rules-proxmox
+    rules:
+      - record: pve_guests:total
+        expr: count(pve_guest_info{id=~".+"})
+

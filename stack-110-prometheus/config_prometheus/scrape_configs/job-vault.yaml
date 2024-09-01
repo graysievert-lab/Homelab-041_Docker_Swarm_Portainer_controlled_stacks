@@ -1,0 +1,14 @@
+scrape_configs: 
+  - job_name: "vault"
+    scheme: https
+    metrics_path: /v1/sys/metrics
+    params:
+      format: ["prometheus"]
+    static_configs:
+      - targets:
+        - aegis.lan:8200 
+    relabel_configs:
+      - source_labels: [job]    
+        target_label: instance
+        regex: (.*)
+        replacement: $1

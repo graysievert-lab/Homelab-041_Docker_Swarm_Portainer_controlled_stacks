@@ -1,0 +1,32 @@
+scrape_configs: 
+  - job_name: "swarm_services"
+    dockerswarm_sd_configs:
+      - host: tcp://tasks.socket-proxy:2375
+        role: services                        # Docker Swarm services discovery
+        port: 443                             # The port to scrape metrics from, when discovered services don't have published ports.| default = 80
+    relabel_configs:
+    # NOTE: There is no control over "target_label: __address__" !!!!
+    # The services role discovers all Swarm services and exposes their ports as targets. 
+    # For each published port of a service, a single target is generated. 
+    # If a service has no published ports, a target per service is created using the port parameter defined in the SD configuration.
+    # Available meta labels:
+      # __meta_dockerswarm_service_id:                            the id of the service
+      # __meta_dockerswarm_service_name:                          the name of the service
+      # __meta_dockerswarm_service_mode:                          the mode of the service
+      # __meta_dockerswarm_service_endpoint_port_name:            the name of the endpoint port, if available
+      # __meta_dockerswarm_service_endpoint_port_publish_mode:    the publish mode of the endpoint port
+      # __meta_dockerswarm_service_label_<labelname>:             each label of the service, with any unsupported characters converted to an underscore
+      # __meta_dockerswarm_service_task_container_hostname:       the container hostname of the target, if available
+      # __meta_dockerswarm_service_task_container_image:          the container image of the target
+      # __meta_dockerswarm_service_updating_status:               the status of the service, if available
+      # __meta_dockerswarm_network_id:                            the ID of the network
+      # __meta_dockerswarm_network_name:                          the name of the network
+      # __meta_dockerswarm_network_ingress:                       whether the network is ingress
+      # __meta_dockerswarm_network_internal:                      whether the network is internal
+      # __meta_dockerswarm_network_label_<labelname>:             each label of the network, with any unsupported characters converted to an underscore
+      # __meta_dockerswarm_network_scope:                         the scope of the network
+
+      # This effectively prevents doscovery to discover anything
+      - source_labels: [__meta_dockerswarm_service_id] 
+        regex: nonexistent_id
+        action: keep

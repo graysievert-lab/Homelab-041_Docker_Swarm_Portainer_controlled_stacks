@@ -1,0 +1,80 @@
+## Severities: info, warning -> critical
+
+global:
+  telegram_api_url: https://api.telegram.org 
+
+templates: # Files from which custom notification template definitions are read. The last component may use a wildcard matcher, e.g. 'templates/*.tmpl'.
+  - "templates/telegram.tmpl"
+
+
+route:  # The root node of the routing tree.
+  group_by: 
+    - alertname
+    - team  
+  group_wait: 1m                   # How long to initially wait to send a notification for a group of alerts.
+  group_interval: 5m               # How long to wait before sending a notification about new alerts that are added to a group with already sent notification.
+  repeat_interval: 1h              # How long to wait before sending a notification again if it has already been sent successfully for an alert. 
+  receiver: telegram-bot           # Default receiver
+  routes:
+    - matchers:               # info messages route
+        - severity = "info"
+      receiver: telegram-bot
+      continue: false              # no further matching
+    - matchers:               # Route for warnings and critical alerts
+        - severity =~ "warning|critical"
+      receiver: telegram-bot
+      continue: false              # no further matching
+
+
+inhibit_rules: # A list of inhibition rules.
+  - source_matchers:
+      - severity = "critical"
+      - alertname = "ProxmoxNodeMemoryUsageAbove90%"
+    target_matchers:
+      - severity = "warning"
+      - alertname = "ProxmoxNodeMemoryUsageAbove80%"
+    equal:
+      - instance
+      - team
+
+  - source_matchers:
+      - severity = "critical"
+      - alertname = "ProxmoxNodeCpuUsageAbove90%"
+    target_matchers:
+      - severity = "warning"
+      - alertname = "ProxmoxNodeCpuUsageAbove80%"
+    equal:
+      - instance
+      - team
+
+  - source_matchers:
+      - severity = "critical"
+      - alertname = "SwarmNodeCPURateAbove90%"
+    target_matchers:
+      - severity = "warning"
+      - alertname = "SwarmNodeCPURateAbove80%"
+    equal:
+      - instance
+      - team
+
+  - source_matchers:
+      - severity = "critical"
+      - alertname = "SwarmNodeMemoryUsageAbove90%"
+    target_matchers:
+      - severity = "warning"
+      - alertname = "SwarmNodeMemoryUsageAbove80%"
+    equal:
+      - instance
+      - team
+
+
+
+receivers:  # A list of notification receivers
+  - name: telegram-bot
+    telegram_configs: 
+    - chat_id: -1002187902767                             # ID of the chat where to send the messages.
+      disable_notifications: false                        # Disable telegram notifications
+      send_resolved: true                                 # Whether to notify about resolved alerts.
+      bot_token_file: /run/secrets/TELEGRAM_BOT_TOKEN     # Read the Telegram bot token from a file. It is mutually exclusive with `bot_token`.
+      message: '{{ template "telegram.html.message" .}}'  # Message template. default = '{{ template "telegram.default.message" .}}'
+      parse_mode:  "HTML"                                 #  MarkdownV2, Markdown, HTML and empty string for plain text.

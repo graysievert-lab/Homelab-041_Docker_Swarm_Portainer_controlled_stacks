@@ -1,0 +1,31 @@
+
+{{ define "__alert_list_telegram_html" }}{{ range . }}
+---
+Status: <code>{{ .Status }}</code>
+Labels:
+{{ range .Labels.SortedPairs }} <code>{{ .Name }}: {{ .Value }}</code>
+{{ end }}
+Annotations:
+{{ range .Annotations.SortedPairs }} <code>{{ .Name }}: {{ .Value }}</code>
+{{ end }}
+StartsAt: <code>{{ .StartsAt }}</code>
+EndsAt: <code>{{ .EndsAt }}</code>
+GeneratorURL: <a href="{{ .GeneratorURL }}">{{ .GeneratorURL }}</a>
+Fingerprint: <code>{{ .Fingerprint }}</code>
+{{ end }}
+{{ end }}
+
+
+{{ define "telegram.html.message" }}
+{{- if gt (len .Alerts.Firing) 0 }}
+<b>[{{- .CommonLabels.severity | toUpper }}]</b> <code>{{.Receiver }}</code> to <code>{{ .CommonLabels.team }}</code>
+Alert <code>{{ .CommonLabels.alertname }}</code> changed to <code>{{ .Status}}</code>
+🔥 Alerts Firing: 🔥
+{{ template "__alert_list_telegram_html" .Alerts.Firing }}
+{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 }}
+<code>{{.Receiver }}</code> to <code>{{ .CommonLabels.team }}</code>
+✅ Alerts Resolved ✅
+{{ template "__alert_list_telegram_html" .Alerts.Resolved }}
+{{ end }}
+{{ end }}

@@ -1,0 +1,31 @@
+scrape_configs: 
+  - job_name: "swarm_nodes"
+    dockerswarm_sd_configs:
+      - host: tcp://tasks.socket-proxy:2375   # Address of the Docker daemon.
+        role: nodes                           # Role of the targets to retrieve. Must be `services`, `tasks`, or `nodes`.
+        port: 443                             # The port to scrape metrics from, when `role` is nodes. default = 80
+    relabel_configs:
+    # NOTE: For role nodes one may successfully relabel "target_label: __address__" 
+    # The nodes role is used to discover Swarm nodes.
+    # Available meta labels:
+      # Available meta labels:
+      # __meta_dockerswarm_node_address:                the address of the node
+      # __meta_dockerswarm_node_availability:           the availability of the node
+      # __meta_dockerswarm_node_engine_version:         the version of the node engine
+      # __meta_dockerswarm_node_hostname:               the hostname of the node
+      # __meta_dockerswarm_node_id:                     the ID of the node
+      # __meta_dockerswarm_node_label_<labelname>:      each label of the node, with any unsupported characters converted to an underscore
+      # __meta_dockerswarm_node_manager_address:        the address of the manager component of the node
+      # __meta_dockerswarm_node_manager_leader:         the leadership status of the manager component of the node (true or false)
+      # __meta_dockerswarm_node_manager_reachability:   the reachability of the manager component of the node
+      # __meta_dockerswarm_node_platform_architecture:  the architecture of the node
+      # __meta_dockerswarm_node_platform_os:            the operating system of the node
+      # __meta_dockerswarm_node_role:                   the role of the node
+      # __meta_dockerswarm_node_status:                 the status of the node
+
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: __address__
+        replacement: $1:9323          # Register target "<node_hostname>:9323"
+
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance        # Set hostname as instance label

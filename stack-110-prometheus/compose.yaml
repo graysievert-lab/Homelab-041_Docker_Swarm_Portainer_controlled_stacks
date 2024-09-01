@@ -1,0 +1,247 @@
+
+networks:
+  traefik:                 # Traefik reverse-proxy network for Grafana, Prometheus, and Alertmanager.  
+    external: true
+  docker_internals:        # Network for docker-socket proxy. Add this network to the services that use it
+    driver: overlay
+    attachable: false
+  monitoring:              # Internal network for stack services
+    driver: overlay
+    attachable: false
+
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
+    alertmanager_data:
+      driver: local
+      driver_opts:
+        type: tmpfs
+        device: tmpfs
+        o: "uid=65534,gid=65534"
+
+secrets:  
+  OIDC_CLIENT_ID:
+    external: true
+  OIDC_SECRET_ID:
+    external: true
+  TELEGRAM_BOT_TOKEN:
+    external: true
+
+
+services:
+###############################################################
+  socket-proxy:
+  # Docker socket proxy should run on the same docker network as the service(s) using it. 
+  # Most containers that would normally connect to a mounted docker.sock 
+  # can have their endpoint overridden using the DOCKER_HOST environment variable 
+  # if they do not offer the option in their configuration; it should typically be pointed to tcp://tasks.socket-proxy:2375.
+    image: lscr.io/linuxserver/socket-proxy:1.26.2
+    environment:
+      - ALLOW_START=0         # /containers/{id}/start
+      - ALLOW_STOP=0          # /containers/{id}/stop
+      - ALLOW_RESTARTS=0      # /containers/{id}/stop, /containers/{id}/restart, and /containers/{id}/kill
+      - AUTH=0                # /auth
+      - BUILD=0               # /build
+      - COMMIT=0              # /commit
+      - CONFIGS=0             # /configs
+      - CONTAINERS=0          # /containers
+      - DISTRIBUTION=0        # /distribution
+      - DISABLE_IPV6=0        # Set to 1 to prevent nginx binding to the IPv6 interface for legacy system that cannot support IPv6.
+      - EVENTS=0              # /events
+      - EXEC=0                # /exec & /containers/{id}/exec
+      - IMAGES=0              # /images
+      - INFO=0                # /info
+      - NETWORKS=1          # /networks
+      - NODES=1             # /nodes
+      - PING=1              # /_ping
+      - PLUGINS=0             # /plugins
+      - POST=0              # When set to 0, only GET and HEAD operations are allowed, making API access read-only.
+      - SECRETS=0             # /secrets
+      - SERVICES=1          # /services
+      - SESSION=0             # /session
+      - SWARM=0               # /swarm
+      - SYSTEM=0              # /system
+      - TASKS=1             # /tasks
+      - VERSION=1           # /version
+      - VOLUMES=0             # /volumes
+    volumes:
+      - type: bind                  # Mount the host docker socket into the container.
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+      - type: tmpfs                 # Mount /run to tmpfs (RAM) to make it writeable.
+        target: /run
+    read_only: true                 # Make the container filesystem read-only. 
+    networks:
+      - docker_internals
+
+###############################################################
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    command: 
+      - --logtostderr=true
+      - --docker_only=true
+      - '-store_container_labels=false'
+    volumes:
+       - /:/rootfs:ro
+       - /var/run:/var/run:ro
+       - /sys:/sys:ro
+       - /var/lib/docker/:/var/lib/docker:ro
+       - /dev/disk/:/dev/disk:ro
+    networks:
+      - docker_internals
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+###############################################################
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - '--path.rootfs=/host'   # rootfs mountpoint
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)' # mount points to exclude for filesystem collector
+      - '--no-collector.ipvs' # disable ipvs collector
+      - '--web.listen-address=:9100' # Addresses on which to expose metrics and web interface.
+      - '--log.level=info' # One of: [debug, info, warn, error]
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+###############################################################
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    volumes:
+      - /etc/pki/ca-trust/source/anchors/localCA.crt:/etc/ssl/certs/localCA.crt:ro # local CA certificate
+      - ./config_prometheus:/etc/prometheus                   # Prometheus configuration folder
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'       # Prometheus configuration file path.
+      - '--web.listen-address=0.0.0.0:9090'                   # Address to listen on for UI, API, and telemetry.
+      - '--web.external-url=https://prometheus.swarm.lan'     # The URL under which Prometheus is externally reachable (if Prometheus is served via a reverse proxy).
+      - '--web.enable-lifecycle'                              # Enable shutdown and reload via HTTP request.
+      - '--web.enable-admin-api'                              # Enable API endpoints for admin control actions.
+      # - '--web.cors.origin=.*'                                # Regex for CORS origin. It is fully anchored. Example: 'https?://(domain1|domain2)\.com'
+      - '--storage.tsdb.path=/prometheus'                     # Base path for metrics storage. Use with server mode only. Default 'data/'
+      - '--storage.tsdb.retention.time=7d'                    # How long to retain samples in storage. Use with server mode only.
+      - '--log.level=info'                                    # Only log messages with the given severity or above. One of: [debug, info, warn, error]
+      - '--log.format=logfmt'                                 # Output format of log messages. One of: [logfmt, json]
+
+    networks:
+      - traefik
+      - docker_internals
+      - monitoring
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.prometheus_p_9090.loadbalancer.server.port=9090"
+        - "traefik.http.routers.prometheus.entrypoints=https"        
+        - "traefik.http.routers.prometheus.rule=Host(`prometheus.swarm.lan`)"
+        - "traefik.http.routers.prometheus.middlewares=authentik"                   # Middleware defined in traeffik's stack. Protects access to prometheus via SSO
+        - "traefik.http.routers.prometheus.service=prometheus_p_9090"
+        - "traefik.http.routers.prometheus.tls.certresolver=homelab-alpn"
+
+
+###############################################################
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    volumes:
+      - /etc/pki/ca-trust/source/anchors/localCA.crt:/etc/ssl/certs/localCA.crt:ro # local CA certificate
+      - grafana_data:/var/lib/grafana
+      - ./config_grafana/provisioning:/etc/grafana/provisioning
+    environment:
+     # [path]
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning # Folder that contains provisioning config files that Grafana will apply on startup.
+     # [server]
+      GF_SERVER_ROOT_URL: https://grafana.swarm.lan # URL to access Grafana from a web browser, also used to form OAUTH callback URL.
+     # [analytics]
+      GF_ANALYTICS_REPORTING_ENABLED: "false" # Server reporting, sends usage counters to stats.grafana.org every 24 hours.
+     # [security]
+     # Loading configuration options from docker secrets: GF_<SectionName>_<KeyName>__FILE (e.g. GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/admin_password)
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true" # disable creation of admin user on first start of grafana
+      # GF_SECURITY_ADMIN_USER: admin # default admin user, created on startup
+      # GF_SECURITY_ADMIN_PASSWORD: admin # default admin password, can be changed before first start of grafana, or in profile settings
+    # [users]
+      GF_USERS_ALLOW_SIGN_UP: "false" # disable user signup / registration
+     # [auth]
+     # [auth.generic_oauth]
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true" # Enables generic OAuth2 authentication.
+      GF_AUTH_GENERIC_OAUTH_NAME: "authentik" # Name that refers to the generic OAuth2 authentication from the Grafana user interface
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID__FILE: /run/secrets/OIDC_CLIENT_ID # Client ID provided by your OAuth2 app.
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE: /run/secrets/OIDC_SECRET_ID # Client secret provided by your OAuth2 app.
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://aegis.lan/application/o/authorize/" # Authorization endpoint of your OAuth2 provider.
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "https://aegis.lan/application/o/token/"     # Endpoint used to obtain the OAuth2 access token.
+      GF_AUTH_GENERIC_OAUTH_API_URL: "https://aegis.lan/application/o/userinfo/"    # Endpoint used to obtain user information compatible with OpenID UserInfo.
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email" # List of comma- or space-separated OAuth2 scopes.
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true" # Controls Grafana user creation through the generic OAuth2 login. Only existing Grafana users can log in with generic OAuth if set to false.
+      GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN: "false"    # Set to true to enable users to bypass the login screen and automatically log in. 
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups, 'devops') && 'GrafanaAdmin' || 'None'" # Map user groups to Grafana roles. Grafana roles: (None, Viewer, Editor, Admin or GrafanaAdmin)
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "true" # Set to true to deny user login if the Grafana org role cannot be extracted using role_attribute_path or org_mapping.
+      GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN: "true" # If role_attribute_path is "GrafanaAdmin" and this is "true" -> the server admin and org admin roles. If "false" -> only org admin role.
+     # [log]
+      GF_LOG_MODE: "console file" # Either "console", "file", "syslog". Default is console and file. Use space to separate multiple modes, e.g. "console file"
+      GF_LOG_LEVEL: info # Either "debug", "info", "warn", "error", "critical", default is "info"
+      
+    networks:
+      - traefik
+      - monitoring
+    secrets:
+      - OIDC_CLIENT_ID
+      - OIDC_SECRET_ID
+    deploy:
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.services.grafana_p_3000.loadbalancer.server.port=3000"
+          - "traefik.http.routers.grafana.entrypoints=https"        
+          - "traefik.http.routers.grafana.rule=Host(`grafana.swarm.lan`)"
+          - "traefik.http.routers.grafana.service=grafana_p_3000"
+          - "traefik.http.routers.grafana.tls.certresolver=homelab-alpn"
+
+###############################################################
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - "./config_alertmanager:/alertmanager"
+      - alertmanager_data:/alertmanager/data
+    command:
+      - '--config.file=alertmanager.yaml'                   # Alertmanager configuration file name.
+      - '--storage.path=data/'                              # Base path for data storage.
+      - '--web.listen-address=:9093'                        # Addresses on which to expose metrics and web interface. Repeatable for multiple addresses.
+      - '--web.external-url=https://alertmanager.swarm.lan'               # The URL under which Alertmanager is externally reachable.
+      - '--log.level=info'                                  # Only log messages with the given severity or above. One of: [debug, info, warn, error]
+    networks:
+      - traefik
+      - monitoring
+    secrets:
+      - TELEGRAM_BOT_TOKEN
+    deploy:
+      placement:
+        constraints:
+           - node.role==manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.alertmanager_p_9093.loadbalancer.server.port=9093"
+        - "traefik.http.routers.alertmanager.entrypoints=https"        
+        - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.swarm.lan`)"
+        - "traefik.http.routers.alertmanager.middlewares=authentik"                   # Middleware defined in traeffik's stack. Protects access to alertmanager via SSO
+        - "traefik.http.routers.alertmanager.service=alertmanager_p_9093"
+        - "traefik.http.routers.alertmanager.tls.certresolver=homelab-alpn"

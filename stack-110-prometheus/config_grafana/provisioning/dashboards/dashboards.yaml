@@ -1,0 +1,13 @@
+apiVersion: 1
+providers:
+  - name: 'provisioning'      # an unique provider name
+    orgId: 1                  # Org id. Default to 1
+    type: file                # provider type. Default to 'file'
+    options:
+      path: /etc/grafana/provisioning/dashboards # path to dashboard files on disk. Required when using the 'file' type
+      foldersFromFilesStructure: true   # use folder names from filesystem to create folders in Grafana. The 'folder' and 'folderUid' options should be empty or missing to make foldersFromFilesStructure work.
+    folder: ''                # name of the dashboard folder. Dashboards are provisioned to the root level if the folder option is missing or empty.
+    folderUid: ''             # folder UID. will be automatically generated if not specified
+    disableDeletion: false    # disable dashboard deletion
+    updateIntervalSeconds: 10 # how often Grafana will scan for changed dashboards
+    allowUiUpdates: true      # allow updating provisioned dashboards from the UI

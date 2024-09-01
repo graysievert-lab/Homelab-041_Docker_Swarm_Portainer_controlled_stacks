@@ -1,0 +1,12 @@
+scrape_configs: 
+  - job_name: "authentik"
+    scheme: http
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+        - aegis.lan:9300 
+    relabel_configs:
+      - source_labels: [job]    
+        target_label: instance
+        regex: (.*)
+        replacement: $1

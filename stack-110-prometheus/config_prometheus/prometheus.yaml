@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s          # How frequently to scrape targets by default. default = 1m
+  scrape_timeout: 10s           # How long until a scrape request times out. default = 10s 
+  evaluation_interval: 15s      # How frequently to evaluate rules.
+  # query_log_file: "/logs/query_log"  # File to which PromQL queries are logged. 
+
+
+rule_files:           # A list of globs. Rules and alerts are read from all matching files.
+  - rules/rules*.yaml
+  - rules/alerts*.yaml
+
+alerting:             # Alertmanager configuration
+  alertmanagers:
+    - scheme: http
+      static_configs:
+        - targets:
+          - tasks.alertmanager:9093
+
+
+scrape_config_files:  # A list of globs. Scrape configs are read from all matching files and appended to the list of scrape configs.
+  - scrape_configs/job*.yaml
+
+scrape_configs:       # A set of targets and parameters describing how to scrape them. 
+  - job_name: "prometheus"                    # The job name assigned to scraped metrics by default.
+    # scrape_interval: <duration>             # How frequently to scrape targets from this job. default = <global_config.scrape_interval>
+    # scrape_timeout: <duration>              # Per-scrape timeout when scraping this job. default = <global_config.scrape_timeout>
+    # scrape_protocols: [<string>, ...]       # The protocols to negotiate during a scrape with the client. default = <global_config.scrape_protocols>
+    # metrics_path: /metrics                  # The HTTP resource path on which to fetch metrics from targets. default = /metrics
+    # honor_labels: <boolean>                 # Mode of conflicts resolution between existing labels and new lables. default = false
+    # honor_timestamps: <boolean>             # Controls whether Prometheus respects the timestamps present in scraped data. default = true 
+    # track_timestamps_staleness: <boolean>   # Controls whether Prometheus tracks staleness of the metrics that have an explicit timestamps present in scraped data. default = false
+    scheme: http                             # Configures the protocol scheme used for requests. default = http
+    # enable_compression: <boolean>           # If set to "false", Prometheus will request uncompressed response from the scraped target. default = true
+    # follow_redirects: <boolean>             # Configure whether scrape requests follow HTTP 3xx redirects. default = true
+    # enable_http2: <boolean>                 # Whether to enable HTTP2. default: true
+    static_configs:
+      - targets:                        # The targets specified by the static config.
+        - tasks.prometheus:9090
+      # - labels:                         # Labels assigned to all metrics scraped from the targets.
+      #     <labelname>: <labelvalue>

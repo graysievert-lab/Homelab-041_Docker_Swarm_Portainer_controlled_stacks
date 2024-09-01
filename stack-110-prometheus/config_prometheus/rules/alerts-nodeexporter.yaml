@@ -1,0 +1,76 @@
+groups:
+  - name: alerts-nodeexporter
+    rules:
+####################################################
+      - record: job:node_cpu_seconds:usage
+        expr: ((sum without(cpu, mode)(irate(node_cpu_seconds_total{mode!="idle"}[5m]))/count without(cpu)(count without(mode)(node_cpu_seconds_total))) * 100)
+
+      - alert: SwarmNodeCPURateAbove80%
+        expr: 80 < job:node_cpu_seconds:usage <90
+        for: 1m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          description: 'CPU usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+          
+      - alert: SwarmNodeCPURateAbove90%
+        expr: 90< job:node_cpu_seconds:usage
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'CPU usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+####################################################          
+      - record: job:node_mem_available:usage
+        expr: (1-(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 
+      
+
+      - alert: SwarmNodeMemoryUsageAbove80%
+        expr: 80 < job:node_mem_available:usage < 90
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'Memory usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+
+      - alert: SwarmNodeMemoryUsageAbove90%
+        expr: 90 < job:node_mem_available:usage
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: 'Memory usage on `{{ $labels.instance }}` has reached *{{ $value }}%*.'
+          dashboard: 
+####################################################          
+      - record: job:node_fs_free:avail
+        expr: ((sum by(instance)(node_filesystem_free_bytes)) / (sum by(instance)(node_filesystem_size_bytes))) * 100 
+      
+      - alert: SwarmNodeFreeDiskSpaceLessThan20%
+        expr: job:node_fs_free:avail < 20
+        for: 1m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          description: 'Free disk space on `{{ $labels.instance }}` is only at *{{ $value }}%*.'
+          dashboard: 
+####################################################          
+      - record: job:node_fs_free:predict
+        expr: (predict_linear(node_filesystem_free_bytes{device=~"/dev/sda.+"}[1h], (8 * 3600))) / (node_filesystem_size_bytes{device=~"/dev/sda.+"}) * 100
+      
+      - alert: SwarmNodeFreeDiskSpaceProjectedToBeLessThan10%In8Hours
+        expr: job:node_fs_free:predict < 10
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          description: '`{{ $labels.instance }}` is expected to only have *{{ $value }}%* free disk space at mountpoint `{{ $labels.mountpoint }}` in 8 hours.'
+          dashboard: 

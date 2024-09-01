@@ -1,0 +1,15 @@
+scrape_configs: 
+  - job_name: "proxmox"
+    scheme: https
+    metrics_path: /pve
+    static_configs:
+      - targets:
+        - pve.lan:9221          # This is the metrics exporter address. It can be launched on any host. Running on the proxmox node is a coincidence
+    params:                     # HTTP URL parameters
+      target: ["pve.lan"]       # And this is the target for metrics exporter. 
+                                # With all Job's parameters above the request goes to https://pve.lan:9221/pve?target=pve.lan
+    relabel_configs:
+      - source_labels: [__param_target]    # change "Instance" label from "__address__" to actual target hostname
+        target_label: instance
+        regex: (.*)
+        replacement: $1
